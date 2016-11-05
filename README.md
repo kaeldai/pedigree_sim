@@ -1,7 +1,9 @@
 # Pedigree simulator
 
 Simulates sequencing data for a given pedigree - including germline mutations, somatic mutations, and library read errors. Takes in a pedigree (ped) file and a reference (fasta), and produces data by the following procedure:  
-1. Generates pedigree founder gametic DNA based on the reference.
+
+1. Generates pedigree founder gametic DNA based on the reference.  
+
 2. Creates gametic DNA for the second generation, using meiosis transition of founders DNA plus the given mutation rate. Repeats until all members have been processed.
 3. Creates somatic DNA by simulating mitotic transition from germline, with error rates.
 4. Simulates a library read call with specified depth from somatic DNA, using a mixed Multinomial Dirichlet distribution.
