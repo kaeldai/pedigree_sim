@@ -121,12 +121,32 @@ int main(int argc, char *argv[]) {
 
 
   
-  // TODO: save germline and somatic genotypes in a vcf file.
+  // Save germline and somatic genotypes in a vcf file.
+  io::VCFOutput vcf_file((base_fname + ".vcf").c_str());
+  vcf_file.addContig(contig_name.c_str(), contig_len);
+  for(ped::Member &m : family) {
+   vcf_file.addSample((std::string("GL-") + m.id).c_str());
+   vcf_file.addSample((std::string("SL-") + m.id).c_str());
+  }
+  vcf_file.writeHeader();
+  std::vector<Genotype> gts(family.size()*2);
+  for(size_t site = 0; site < contig_len; ++site) {
+    Base ref = reference[site];
+    vcf_file.newSite(contig_name, (pos_begin + site), ref);
+    for(size_t mem = 0; mem < family.size(); ++mem) {
+      gts[2*mem] = gametic_dna[mem][site];
+      gts[2*mem+1] = somatic_dna[mem][site];
+    }
+    vcf_file.addGenotypes(gts);
+    vcf_file.writeSite();
+  }
+  vcf_file.close();
+  
   
 
   
   // Create library reads and output to file file
-  io::VariantOutput tad_file((base_fname + ".tad").c_str());
+  io::TadOutput tad_file((base_fname + ".tad").c_str());
   std::vector<std::string> lb_names;
   for(ped::Member &m : family) {
     lb_names.emplace_back(m.id);

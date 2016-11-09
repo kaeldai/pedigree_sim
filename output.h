@@ -8,13 +8,114 @@
 #include <string>
 #include <vector>
 
+#include <htslib/vcf.h>
+
 namespace sim {
 namespace io {
 
 
 unsigned int allele_orders[4][3] = {{1, 2, 3}, {2, 3, 0}, {3, 0, 1}, {0, 1, 2}};
 
-class VariantOutput {
+class VCFOutput {
+ protected:
+  htsFile *vcf_handle_;
+  bcf_hdr_t *vcf_hdr_;
+  bcf1_t *vcf_rec_;
+
+  std::string c_contig_id_;
+  Base c_ref_;
+  int32_t c_pos_;
+
+  
+ public:
+  VCFOutput(std::string &filename) {
+    VCFOutput(filename.c_str());
+  }
+
+  VCFOutput(const char *filename) {
+    vcf_handle_ = hts_open(filename, "w");
+    vcf_hdr_ = bcf_hdr_init("w");
+    vcf_rec_ = bcf_init();
+    bcf_hdr_append(vcf_hdr_, "##fileformat=VCFv4.2");
+    bcf_hdr_append(vcf_hdr_, "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">");
+  }
+
+  void addContig(const char *contig, int length) {
+    std::string contig_header = std::string("##contig=<ID=") + contig +",length=" + std::to_string(length) + ">";
+    bcf_hdr_append(vcf_hdr_, contig_header.c_str());
+  }
+
+  void addSample(const char *sample) {
+    bcf_hdr_add_sample(vcf_hdr_, sample);
+  }
+  
+  void writeHeader() {
+    bcf_hdr_add_sample(vcf_hdr_, nullptr);
+    bcf_hdr_write(vcf_handle_, vcf_hdr_);
+  }
+
+  void newSite(std::string &contig, int32_t pos, Base ref) {
+    c_contig_id_ = contig;
+    c_pos_ =  pos;
+    c_ref_ = ref;
+  }
+
+
+  
+  void addGenotypes(std::vector<Genotype> &gts) {
+    std::string alleles = std::string(base2str(c_ref_)); // string of alleles
+    std::array<int, 4> allele_map = {-1,-1,-1,-1};
+    allele_map[c_ref_] = 0;
+    int allele_map_last = 1;
+    
+    std::vector<int32_t> genotypes(2*gts.size());
+    for(int a = 0; a < gts.size(); ++a) {
+      Genotype gt = gts[a];
+      Base b1 = split_table[gt][0];
+      int32_t b1_index = allele_map[b1];
+      if(b1_index == -1) {
+	b1_index = allele_map[b1] = allele_map_last++;
+	alleles += std::string(",") + base2str(b1); 
+      }
+
+      Base b2 = split_table[gt][1];
+      int32_t b2_index = allele_map[b2];
+      if(b2_index == -1) {
+	b2_index = allele_map[b2] = allele_map_last++;
+	alleles += std::string(",") + base2str(b2); 
+      }
+
+
+      if(b1_index <= b2_index) {
+	genotypes[a*2] = bcf_gt_unphased(b1_index);
+	genotypes[a*2+1] = bcf_gt_unphased(b2_index);
+      }
+      else {
+	// NOT sure if the standard requires the reference goes first for unphases genotypes, code may be unnnecessary.
+	genotypes[a*2] = bcf_gt_unphased(b2_index);
+	genotypes[a*2+1] = bcf_gt_unphased(b1_index);
+      }      
+    }
+
+    vcf_rec_->pos = c_pos_;
+    bcf_update_alleles_str(vcf_hdr_, vcf_rec_, alleles.c_str());
+    bcf_update_genotypes(vcf_hdr_, vcf_rec_, &genotypes[0], genotypes.size());					
+
+  }
+
+  void writeSite() {
+    bcf_write(vcf_handle_, vcf_hdr_, vcf_rec_);
+  }
+  
+  void close() {
+    bcf_hdr_destroy(vcf_hdr_);
+    bcf_close(vcf_handle_);
+  }
+  
+};
+
+ 
+class TadOutput {
  protected:
   std::vector<std::string> contigs_;
   std::vector<std::string> libraries_;
@@ -28,11 +129,11 @@ class VariantOutput {
   
   
  public:
-  VariantOutput(std::string &filename) {
+  TadOutput(std::string &filename) {
     outfile_.open(filename.c_str());
   }
 
-  VariantOutput(const char *filename) {
+  TadOutput(const char *filename) {
     outfile_.open(filename);
   }
 
