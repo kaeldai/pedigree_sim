@@ -2,6 +2,7 @@
 #define OUTPUT_H
 
 #include "simulator.h"
+#include "pedigree.h"
 
 #include <iostream>
 #include <fstream>
@@ -16,6 +17,8 @@ namespace io {
 
 unsigned int allele_orders[4][3] = {{1, 2, 3}, {2, 3, 0}, {3, 0, 1}, {0, 1, 2}};
 
+
+//TODO: Much of the functionality of VCFOutput and TadOutput can be moved into a parent class.
 class VCFOutput {
  protected:
   htsFile *vcf_handle_;
@@ -59,7 +62,6 @@ class VCFOutput {
     c_pos_ =  pos;
     c_ref_ = ref;
   }
-
 
   
   void addGenotypes(std::vector<Genotype> &gts) {
@@ -197,6 +199,48 @@ class TadOutput {
 };
 
 
+class CSVOutput {
+ private:
+  std::ofstream outfile_;
+
+ public:
+  CSVOutput(const char *filename) {
+    outfile_.open(filename);
+    outfile_ << "ID,father,mother,"
+	     << "Ns,ref/homo,ref/het,-/hom,-/het," // Info on diff between founder and reference
+	     << "Mendelian match,single gametic mutation,double gametic mutation," // Number of different germline mutations
+	     << "somatic matchessingle somatic mut,double somatic mut" // Number of different somatic mutations
+	     << std::endl;
+
+  }
+
+
+  void addStats(std::vector<ped::Member> &family) {
+    for(ped::Member &m : family) {
+      outfile_ << m.id << ",";
+      if(m.is_founder) {
+	outfile_ << ",,"
+		 << m.stats.n_unknowns << ","<< m.stats.n_hom_ref_match << "," << m.stats.n_het_ref_match << "," << m.stats.n_hom_snp << "," << m.stats.n_het_snp << ","
+		 << ",,,";
+	  
+      }
+      else {
+	outfile_ << get_dad(m).id << "," << get_mom(m).id << ","
+		 << ",,,,,"
+		 << m.stats.n_mendelians << "," << m.stats.n_single_mut << "," << m.stats.n_double_mut << ",";
+      }
+
+      outfile_ <<  m.stats.n_som_matches << "," << m.stats.n_som_single_mut << "," << m.stats.n_som_double_mut << std::endl;
+    }
+  }
+  
+  void close() {
+    outfile_.close();
+  }
+
+  
+};
+ 
 } // namespace io
 } // namespace sim
 

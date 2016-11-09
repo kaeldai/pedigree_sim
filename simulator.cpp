@@ -24,6 +24,8 @@ int main(int argc, char *argv[]) {
   ped::parse_pedigree(arg.ped);
   std::vector<ped::Member> family = ped::family;
 
+  std::cout << "> Reading reference." << std::endl;
+    
   // get information about contig
   size_t pos_begin = 0;
   size_t pos_end = 0;
@@ -34,7 +36,6 @@ int main(int argc, char *argv[]) {
   if(base_fname.empty()) {
     base_fname = ped::family_name;
   }
-
   
   // read in reference contig
   int contig_len = 0;
@@ -52,6 +53,8 @@ int main(int argc, char *argv[]) {
 	     
   model::DNGModel model(arg.ref_weight, arg.theta, arg.nuc_freqs, arg.mu, arg.mu_somatic, arg.model_a, arg.model_b);
 
+
+  std::cout << "> Creating germline DNA for founders." << std::endl;
   
   // Use the population priors to intialize founder dna
   size_t remaining = family.size();
@@ -69,6 +72,7 @@ int main(int argc, char *argv[]) {
   }
 
   
+  std::cout << "> Creating germline DNA for children." << std::endl;
   
   // Create gametic DNA for non-founders
   while(remaining) {
@@ -105,6 +109,7 @@ int main(int argc, char *argv[]) {
   }
 
 
+  std::cout << "> Creating somatic DNA." << std::endl;
   
   // Create somatic mutation
   for(size_t mem = 0; mem < family.size(); ++mem) {
@@ -118,7 +123,6 @@ int main(int argc, char *argv[]) {
       collect_somatic_stats(m, gametic_gt, somatic_gt);
     }		    
   }
-
 
   
   // Save germline and somatic genotypes in a vcf file.
@@ -143,7 +147,7 @@ int main(int argc, char *argv[]) {
   vcf_file.close();
   
   
-
+  std::cout << "> Creating read calls." << std::endl;
   
   // Create library reads and output to file file
   io::TadOutput tad_file((base_fname + ".tad").c_str());
@@ -167,8 +171,12 @@ int main(int argc, char *argv[]) {
     tad_file.writeSite();
   }
   tad_file.close();
-      
- 
+
+  io::CSVOutput statsfile((base_fname + ".csv").c_str());
+  statsfile.addStats(family);
+  statsfile.close();
+
+  /* 
   std::cout << "Parent 1:" << std::endl;
   ped::Member &p1m = family[0];
   std::cout << ">  Ns                   = " << p1m.stats.n_unknowns << std::endl;
@@ -199,5 +207,5 @@ int main(int argc, char *argv[]) {
   std::cout << ">>  somatic matches     = " << cm.stats.n_som_matches << std::endl;
   std::cout << ">>  single somatic mut  = " << cm.stats.n_som_single_mut << std::endl;
   std::cout << ">>  double somatic mut  = " << cm.stats.n_som_double_mut << std::endl;
-  
+  */
 }
