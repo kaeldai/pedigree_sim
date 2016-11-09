@@ -208,8 +208,8 @@ class CSVOutput {
     outfile_.open(filename);
     outfile_ << "ID,father,mother,"
 	     << "Ns,ref/homo,ref/het,-/hom,-/het," // Info on diff between founder and reference
-	     << "Mendelian match,single gametic mutation,double gametic mutation," // Number of different germline mutations
-	     << "somatic matchessingle somatic mut,double somatic mut" // Number of different somatic mutations
+	     << "Mendelian match,1 Mut (Germ),2 Mut (Germ)," // Number of different germline mutations
+	     << "Somatic match,1 Mut (Som),2 Mut (Som)" // Number of different somatic mutations
 	     << std::endl;
 
   }
@@ -219,14 +219,14 @@ class CSVOutput {
     for(ped::Member &m : family) {
       outfile_ << m.id << ",";
       if(m.is_founder) {
-	outfile_ << ",,"
+	outfile_ << ".,.,"
 		 << m.stats.n_unknowns << ","<< m.stats.n_hom_ref_match << "," << m.stats.n_het_ref_match << "," << m.stats.n_hom_snp << "," << m.stats.n_het_snp << ","
-		 << ",,,";
+		 << ".,.,.,";
 	  
       }
       else {
 	outfile_ << get_dad(m).id << "," << get_mom(m).id << ","
-		 << ",,,,,"
+		 << ".,.,.,.,.,"
 		 << m.stats.n_mendelians << "," << m.stats.n_single_mut << "," << m.stats.n_double_mut << ",";
       }
 
