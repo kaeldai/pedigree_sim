@@ -8,4 +8,7 @@ all: simulator.cpp
 	$(CXX) $(CFLAGS) $(INC_DIRS) $(LIB_DIRS) -o simulator simulator.cpp $(LIBS)
 
 run:
-	./simulator --mu 1e-5 --mu-somatic 1e-5 --region "chr22:20,000,000-21,000,000" --ped ceu.ped ~/Data/references/GRCh38/GRCh38_full_analysis_set_plus_decoy_hla.fa
+	LD_LIBRARY_PATH=/home/kdai1/.local/boost_1_60_0_gcc/lib ./simulator --mu 1e-5 --mu-somatic 1e-5 --region "chr22:20,000,000-21,000,000" --ped ceu.ped ~/Data/references/GRCh38/GRCh38_full_analysis_set_plus_decoy_hla.fa
+
+run2:
+	./simulator --mu 1e-5 --mu-somatic 1e-5 --gamma "0.98,0.0005,0.0005,1.04" "0.02,0.075,0.005,1.18" --region "chr22:20,000,000-21,000,000" --ped ceu.ped ~/Data/references/GRCh38/GRCh38_full_analysis_set_plus_decoy_hla.fa

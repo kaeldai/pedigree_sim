@@ -151,6 +151,7 @@ int main(int argc, char *argv[]) {
   
   // Create library reads and output to file file
   io::TadOutput tad_file((base_fname + ".tad").c_str());
+  tad_file.addContig(contig_name, contig_len);
   std::vector<std::string> lb_names;
   for(ped::Member &m : family) {
     lb_names.emplace_back(m.id);

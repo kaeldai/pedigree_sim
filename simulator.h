@@ -61,16 +61,7 @@ struct params_t {
 
   read_prop_table read_proportions;
 
-  //params_t(){ }
-
-  //params_t(double _pi, double _phi, double _epsilon, double _omega) :
-  //         pi(_pi), phi(_phi), epsilon(_epsilon), omega(_omega) {   }
-  
 } model_a, model_b;
-
-//params_t model_aa, model_bb;
-
-
 
 
 void parse_options(int argc, char *argv[]) {
@@ -84,7 +75,7 @@ void parse_options(int argc, char *argv[]) {
     ("region,r", po::value<std::string>(&arg.region)->default_value(""), "reference region.")
     ("theta", po::value<double>(&arg.theta)->default_value(0.001), "the population diversity.")
     ("ref-weight,R", po::value<double>(&arg.ref_weight)->default_value(1.0), "bias for reference.")
-    ("gamma", po::value<std::vector<std::string> >(&gamma_str)->default_value({"0.98,0.0005,0.0005,1.04", "0.02,0.075,0.005,1.18"}, ""), "distribution parameters.")
+    ("gamma", po::value<std::vector<std::string> >(&gamma_str)->multitoken()->default_value({"0.98,0.0005,0.0005,1.04", "0.02,0.075,0.005,1.18"}, ""), "distribution parameters.")
     ("mu", po::value<double>(&arg.mu)->default_value(1e-8), "germline mutation rate.")
     ("mu-somatic", po::value<double>(&arg.mu_somatic)->default_value(1e-8), "somatic mutation rate.")
     ("mu-library", po::value<double>(&arg.mu_library)->default_value(1e-8), "library mutation rate.")

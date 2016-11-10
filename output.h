@@ -119,7 +119,9 @@ class VCFOutput {
  
 class TadOutput {
  protected:
-  std::vector<std::string> contigs_;
+  
+  
+  std::vector<std::pair<std::string, int>> contigs_;
   std::vector<std::string> libraries_;
 
   Base c_ref_;
@@ -139,8 +141,9 @@ class TadOutput {
     outfile_.open(filename);
   }
 
-  void addContig(std::string &contig_name) {
-
+  void addContig(std::string &contig_name, int len) {
+    contigs_.emplace_back(contig_name, len);
+    
   }
   
   void addLibrary(std::string &lb_name) {
@@ -149,7 +152,15 @@ class TadOutput {
   }
 
   void writeHeader() {
-
+    outfile_ << "@ID\tFF:TAD\tVN:0.1\tSO:coordinate" <<  std::endl;
+    for(std::pair<std::string, int> &p : contigs_) {
+      outfile_ << "@SQ\tSN:" << p.first << "\tLN:" << std::to_string(p.second) << std::endl;
+    }
+    
+    for(std::string &m : libraries_) {
+      outfile_ << "@AD\tID:" << m << "\tSM:" << m << std::endl;
+    }
+    
   }
 
   void newSite(std::string &contig_name, size_t pos, Base ref) {
