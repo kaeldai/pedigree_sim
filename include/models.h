@@ -2,8 +2,6 @@
 #define MODELS_H
 
 
-
-
 #include "simulator.h"
 #include "pedigree.h"
 

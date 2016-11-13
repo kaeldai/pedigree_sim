@@ -65,6 +65,14 @@ class VCFOutput {
 
   
   void addGenotypes(std::vector<Genotype> &gts) {
+    if(c_ref_ == N) {
+      vcf_rec_->pos = c_pos_;
+      bcf_update_alleles_str(vcf_hdr_, vcf_rec_, "N");
+      std::vector<int32_t> genotypes(2*bcf_hdr_nsamples(vcf_hdr_), bcf_gt_unphased(0));
+      bcf_update_genotypes(vcf_hdr_, vcf_rec_, &genotypes[0], genotypes.size());	
+      return;
+    }
+    
     std::string alleles = std::string(base2str(c_ref_)); // string of alleles
     std::array<int, 4> allele_map = {-1,-1,-1,-1};
     allele_map[c_ref_] = 0;
@@ -86,7 +94,6 @@ class VCFOutput {
 	b2_index = allele_map[b2] = allele_map_last++;
 	alleles += std::string(",") + base2str(b2); 
       }
-
 
       if(b1_index <= b2_index) {
 	genotypes[a*2] = bcf_gt_unphased(b1_index);
@@ -119,8 +126,6 @@ class VCFOutput {
  
 class TadOutput {
  protected:
-  
-  
   std::vector<std::pair<std::string, int>> contigs_;
   std::vector<std::string> libraries_;
 
@@ -176,6 +181,11 @@ class TadOutput {
  
   void writeSite() {
     // Get references
+    if(c_ref_ == N) {
+      outfile_ << c_contig_ << "\t" << c_pos_ << "\tN" << std::endl;
+      return;
+    }
+    
     std::string alleles = base2str(c_ref_);
     std::vector<std::string> depths_str(libraries_.size());
     for(int a = 0; a < c_depths_.size(); ++a) {

@@ -18,7 +18,9 @@ using namespace sim;
 int main(int argc, char *argv[]) {
 
   // read command line options
-  parse_options(argc, argv);
+  if(parse_options(argc, argv) == EXIT_FAILURE) {
+    return EXIT_FAILURE;
+  }
  
   // read the pedigree file
   ped::parse_pedigree(arg.ped);
@@ -71,7 +73,7 @@ int main(int argc, char *argv[]) {
     --remaining;
   }
 
-  
+
   std::cout << "> Creating germline DNA for children." << std::endl;
   
   // Create gametic DNA for non-founders
@@ -82,7 +84,6 @@ int main(int argc, char *argv[]) {
 	// member already has gametic DNA
 	continue;
       }
-
       ped::Member &dad = get_dad(m);
       ped::Member &mom = get_mom(m);
       if(!dad.dna_set || !mom.dna_set) {
@@ -95,7 +96,7 @@ int main(int argc, char *argv[]) {
       std::vector<Genotype> &cdna = gametic_dna[mem]; // child's dna
       std::vector<Genotype> &ddna = gametic_dna[m.dpos]; // dad's dna
       std::vector<Genotype> &mdna = gametic_dna[m.mpos]; // mom's dna
-      for(size_t site; site < contig_len; ++site) {
+      for(size_t site = 0; site < contig_len; ++site) {
 	Base ref = reference[site];
 	Genotype dgt = ddna[site];
 	Genotype mgt = mdna[site];
@@ -104,10 +105,9 @@ int main(int argc, char *argv[]) {
 	collect_germline_stats(m, cgt, mgt, dgt);
       }
       m.dna_set = true;
-      --remaining; 
+      --remaining;
     }
   }
-
 
   std::cout << "> Creating somatic DNA." << std::endl;
   
@@ -115,13 +115,14 @@ int main(int argc, char *argv[]) {
   for(size_t mem = 0; mem < family.size(); ++mem) {
     ped::Member &m = family[mem];
     std::vector<Genotype> &dna = gametic_dna[mem];
+
     for(size_t site = 0; site < contig_len; ++site) {
       Base ref = reference[site];
       Genotype gametic_gt = dna[site];
       Genotype somatic_gt = model.getSomaticTransition(m, ref, gametic_gt);
       somatic_dna[mem].push_back(somatic_gt);
       collect_somatic_stats(m, gametic_gt, somatic_gt);
-    }		    
+    }
   }
 
   
@@ -163,7 +164,7 @@ int main(int argc, char *argv[]) {
   std::vector<reads_list> read_depths(family.size());
   for(size_t site = 0; site < contig_len; ++site) {
     Base ref = reference[site];
-    size_t pos = pos_begin + site;
+    size_t pos = pos_begin + site + 1;
     tad_file.newSite(contig_name, pos, ref);
     for(size_t mem = 0; mem < family.size(); ++mem) {
       model.call(arg.read_depths, ref, somatic_dna[mem][site], read_depths[mem]); 
@@ -177,36 +178,4 @@ int main(int argc, char *argv[]) {
   statsfile.addStats(family);
   statsfile.close();
 
-  /* 
-  std::cout << "Parent 1:" << std::endl;
-  ped::Member &p1m = family[0];
-  std::cout << ">  Ns                   = " << p1m.stats.n_unknowns << std::endl;
-  std::cout << ">  ref / homo           = " << p1m.stats.n_hom_ref_match << std::endl;
-  std::cout << ">  ref / het            = " << p1m.stats.n_het_ref_match << std::endl;
-  std::cout << ">   -  / hom            = " << p1m.stats.n_hom_snp << std::endl;
-  std::cout << ">   -  / het            = " << p1m.stats.n_het_snp << std::endl;
-  std::cout << ">>  somatic matches     = " << p1m.stats.n_som_matches << std::endl;
-  std::cout << ">>  single somatic mut  = " << p1m.stats.n_som_single_mut << std::endl;
-  std::cout << ">>  double somatic mut  = " << p1m.stats.n_som_double_mut << std::endl;
-  
-  std::cout << "Parent 2:" << std::endl;
-  ped::Member &p2m = family[1];
-  std::cout << ">  Ns                   = " << p2m.stats.n_unknowns << std::endl;
-  std::cout << ">  ref / homo           = " << p2m.stats.n_hom_ref_match << std::endl;
-  std::cout << ">  ref / het            = " << p2m.stats.n_het_ref_match << std::endl;
-  std::cout << ">   -  / hom            = " << p2m.stats.n_hom_snp << std::endl;
-  std::cout << ">   -  / het            = " << p2m.stats.n_het_snp << std::endl;
-  std::cout << ">>  somatic matches     = " << p2m.stats.n_som_matches << std::endl;
-  std::cout << ">>  single somatic mut  = " << p2m.stats.n_som_single_mut << std::endl;
-  std::cout << ">>  double somatic mut  = " << p2m.stats.n_som_double_mut << std::endl;
- 
-  std::cout << "Child:" << std::endl;
-  ped::Member &cm = family[2];
-  std::cout << ">   Mendelian match     = " << cm.stats.n_mendelians << std::endl;
-  std::cout << ">   single mutation     = " << cm.stats.n_single_mut << std::endl;
-  std::cout << ">   double mutation     = " << cm.stats.n_double_mut << std::endl;
-  std::cout << ">>  somatic matches     = " << cm.stats.n_som_matches << std::endl;
-  std::cout << ">>  single somatic mut  = " << cm.stats.n_som_single_mut << std::endl;
-  std::cout << ">>  double somatic mut  = " << cm.stats.n_som_double_mut << std::endl;
-  */
 }

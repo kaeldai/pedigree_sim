@@ -49,6 +49,7 @@ struct arg_t {
   double mu_library;
   std::array<double, 4> nuc_freqs;
   gamma_t model_a, model_b;
+  bool help;
 
   std::string input;
 } arg;
@@ -64,7 +65,7 @@ struct params_t {
 } model_a, model_b;
 
 
-void parse_options(int argc, char *argv[]) {
+int parse_options(int argc, char *argv[]) {
   std::string nuc_freqs;
   std::vector<std::string> gamma_str;
 
@@ -81,6 +82,7 @@ void parse_options(int argc, char *argv[]) {
     ("mu-library", po::value<double>(&arg.mu_library)->default_value(1e-8), "library mutation rate.")
     ("nuc-freqs", po::value<std::string>(&nuc_freqs)->default_value("0.3,0.2,0.2,0.3"), "order frequency.")
     ("input", po::value<std::string>(&arg.input)->default_value(""), "reference file.")
+    ("help,h", po::value<bool>(&arg.help)->default_value(false, "off"))
     ;
 
   p.add("input", -1);
@@ -88,19 +90,20 @@ void parse_options(int argc, char *argv[]) {
   po::store(po::command_line_parser(argc, argv).options(_desc).positional(p).run(), vm);
   po::notify(vm);
 
-  if(arg.input.empty()) {
-    throw std::runtime_error("No input fasta file.");
+  if(arg.input.empty() || arg.help) {
+    std::cerr << "Usage:" << std::endl
+	      << "simulator [options] --ped <family.ped> <reference.fasta>" << std::endl
+	      << std::endl <<  _desc << std::endl;
+    return EXIT_FAILURE;
   }
   
-  //if(arg.ped.empty()) {
-  //  throw std::runtime_error("No pedigree file.");
-  //}
+  if(arg.ped.empty()) {
+    throw std::runtime_error("No pedigree file.");
+  }
 
   if(arg.region.empty()) {
     throw std::runtime_error("No region specified.");
   }
-
-
 
   // Convert nuc_freq to list
   std::vector<std::string> nfs;
@@ -124,10 +127,8 @@ void parse_options(int argc, char *argv[]) {
   arg.model_b.epsilon = std::stod(plist2[2]);
   arg.model_b.omega = std::stod(plist2[3]);
 
+  return EXIT_SUCCESS;
 }
-
-
-
 
 
 typedef uint8_t Base;
