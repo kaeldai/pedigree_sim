@@ -1,6 +1,8 @@
 #ifndef MODELS_H
 #define MODELS_H
 
+#include <iostream>
+#include <vector>
 
 #include "simulator.h"
 #include "pedigree.h"
@@ -18,8 +20,9 @@ class DNGModel {
 
  public:
  DNGModel(double ref_weight, double theta, std::array<double,4> nuc_freqs, double mu, double mu_somatic,
-	  gamma_t model_a, gamma_t model_b) : ref_weight_(ref_weight), theta_(theta), nuc_freqs_(nuc_freqs), mu_(mu),
-    mu_soma_(mu_somatic), model_a_(model_a), model_b_(model_b) {
+	  gamma_t model_a, gamma_t model_b, int n_germ_mut = -1, int n_som_mut =-1) :
+            ref_weight_(ref_weight), theta_(theta), nuc_freqs_(nuc_freqs), mu_(mu), mu_soma_(mu_somatic),
+            model_a_(model_a), model_b_(model_b) {
       // Create probabilities for founder germline based on ref, freqs, and dispersial (theta)
       genotype_priors_[0] = population_prior(theta_, nuc_freqs_, {ref_weight_, 0, 0, 0});
       genotype_priors_[1] = population_prior(theta_, nuc_freqs_, {0, ref_weight_, 0, 0});
@@ -30,11 +33,17 @@ class DNGModel {
       setPopPriorDist(genotype_priors_);
 
       // Create distribution for germline transitions
-      germline_trans_matrix_ = meiosis_diploid_matrix(mu_, nuc_freqs_);
+      germline_trans_matrix_ = meiosis_diploid_matrix(mu_, nuc_freqs_, n_germ_mut);
+
+      //std::cout << "germline_tran_matrix_ -----------------" << std::endl;
+      //std::cout << germline_trans_matrix_ << std::endl;
+      //exit(0);
+      //}
+      
       setGermlineDist(germline_trans_matrix_);
 
       // Distribution for somatic transitons
-      somatic_trans_matrix_ = mitosis_diploid_matrix(mu_soma_, nuc_freqs_);
+      somatic_trans_matrix_ = mitosis_diploid_matrix(mu_soma_, nuc_freqs_, n_som_mut);
       setSomaticDist(somatic_trans_matrix_);
 
       // Create two lookup tables for call probabilities
@@ -309,6 +318,28 @@ class DNGModel {
 };
 
 
+// Same as the dng-call model but will always force a single (not double) germline mutation.
+class DNGModel1GM : public DNGModel {
+ public:
+ DNGModel1GM(double ref_weight, double theta, std::array<double,4> nuc_freqs, double mu_somatic, gamma_t model_a, gamma_t model_b)
+   : DNGModel(arg.ref_weight, arg.theta, arg.nuc_freqs, 1.0, arg.mu_somatic, arg.model_a, arg.model_b, 1, -1) {
+    // Empty
+  }
+ 
+};
+
+// The dng-call model but will always enforce a single somatic mutation.
+class DNGModel1SM : public DNGModel {
+ public:
+ DNGModel1SM(double ref_weight, double theta, std::array<double,4> nuc_freqs, double mu, gamma_t model_a, gamma_t model_b)
+   : DNGModel(arg.ref_weight, arg.theta, arg.nuc_freqs, mu, 1.0, arg.model_a, arg.model_b, -1, 1) {
+    // Empty
+  }
+  
+
+};
+
+ 
 } // namespace model
 } // namespace sim
 

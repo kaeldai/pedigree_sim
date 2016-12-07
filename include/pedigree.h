@@ -176,7 +176,7 @@ void collect_germline_stats(Member &mem, Genotype cgt, Genotype mgt, Genotype dg
   if(cgt == NN || mgt == NN || dgt == NN) {
     return;
   }  
-  
+
   // Create a table of all possible mendelian combinations using parents genotypes
   //   TODO: preprocess possible combinations
   Base *m = split_table[mgt];

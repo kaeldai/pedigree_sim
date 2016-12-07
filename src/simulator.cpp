@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <random>
+#include <map>
 
 #include "simulator.h"
 #include "output.h"
@@ -50,11 +51,82 @@ int main(int argc, char *argv[]) {
     reference[site] = char2base(contig_str[site]);
   }
 
+  // Check the values of --germline-mutation
+  std::vector<std::vector<std::size_t>> germline_mutations(family.size());
+  for(std::pair<std::string, std::size_t> &loci : arg.germline_mutations) {
+    std::string id = loci.first;
+    std::size_t pos = loci.second;
+  
+    // make sure loci position is valid
+    if(loci.second >= contig_len) {
+      throw std::runtime_error("Germline mutation position \"" + id + ":" + std::to_string(pos) +
+			       "\" is out of range. Please specify location between [0," + std::to_string(contig_len) + ")");
+    }
+
+    // make sure member is in the family
+    
+    std::size_t mem_loc = 0;
+    for( ; mem_loc < family.size(); ++mem_loc) {
+      if(id == family[mem_loc].id) {
+	// TODO: May want to allow germline mutation on founder by forcing loci to be different from reference?
+	if(family[mem_loc].is_founder) {
+	  throw std::runtime_error("Invalid germline mutation \"" + id + ":" + std::to_string(pos) +
+				   "\". Pedigree member " + id + " is a founder.");	  
+	}	
+	break;
+      }
+    }
+    if(mem_loc == family.size()) {
+      throw std::runtime_error("Invalid germline mutation \"" + id + ":" + std::to_string(pos) +
+			       "\". No pedigree member " + id + ".");
+    }
+    else {
+      germline_mutations[mem_loc].push_back(pos);
+    }
+  }
+
+    // Check the values of --somatic-mutation
+  std::vector<std::vector<std::size_t>> somatic_mutations(family.size());
+  for(std::pair<std::string, std::size_t> &loci : arg.somatic_mutations) {
+    std::string id = loci.first;
+    std::size_t pos = loci.second;
+  
+    // make sure loci position is valid
+    if(loci.second >= contig_len) {
+      throw std::runtime_error("Somatic mutation position \"" + id + ":" + std::to_string(pos) +
+			       "\" is out of range. Please specify location between [0," + std::to_string(contig_len) + ")");
+    }
+
+    // make sure member is in the family    
+    std::size_t mem_loc = 0;
+    for( ; mem_loc < family.size(); ++mem_loc) {
+      if(id == family[mem_loc].id) {
+	break;
+      }
+    }
+    if(mem_loc == family.size()) {
+      throw std::runtime_error("Invalid somatic mutation \"" + id + ":" + std::to_string(pos) +
+			       "\". No pedigree member " + id + ".");
+    }
+    else {
+      somatic_mutations[mem_loc].push_back(pos);
+    }
+  }
+
+
+  
+
   std::vector<std::vector<Genotype>> gametic_dna(family.size());
   std::vector<std::vector<Genotype>> somatic_dna(family.size());
 	     
   model::DNGModel model(arg.ref_weight, arg.theta, arg.nuc_freqs, arg.mu, arg.mu_somatic, arg.model_a, arg.model_b);
 
+  // A model that will always force a germline mutation
+  model::DNGModel1GM model_g1(arg.ref_weight, arg.theta, arg.nuc_freqs, arg.mu_somatic, arg.model_a, arg.model_b);
+  
+  // A model that will always force a somatic mutation
+  model::DNGModel1SM model_s1(arg.ref_weight, arg.theta, arg.nuc_freqs, arg.mu, arg.model_a, arg.model_b);
+  
 
   std::cout << "> Creating germline DNA for founders." << std::endl;
   
@@ -67,7 +139,7 @@ int main(int argc, char *argv[]) {
       Base ref = reference[site];
       Genotype gt = model.createGameticDNA(m, ref);
       mdna.push_back(gt);
-      collect_founder_stats(m, ref, gt);
+      ped::collect_founder_stats(m, ref, gt);
     }
     m.dna_set = true;
     --remaining;
@@ -102,8 +174,26 @@ int main(int argc, char *argv[]) {
 	Genotype mgt = mdna[site];
 	Genotype cgt = model.getGermlineTransition(m, ref, mgt, dgt);
 	cdna.push_back(cgt);
-	collect_germline_stats(m, cgt, mgt, dgt);
       }
+
+      // Force user-defined mutations at specific locations.
+      // NOTE: For a typically case with a large contig and only a few forced mutations. It should be faster to
+      //       force mutation afterwards than having to check at every position.
+      if(germline_mutations[mem].size() > 0) {
+	for(size_t site : germline_mutations[mem]) {
+	  Base ref = reference[site];
+	  Genotype dgt = ddna[site];
+	  Genotype mgt = mdna[site];
+	  Genotype cgt = model_g1.getGermlineTransition(m, ref, mgt, dgt);
+	  cdna[site] = cgt;
+	}
+      }    
+
+      // collect statistics about non-founder germline DNA
+      for(size_t site = 0; site < contig_len; ++site) {
+	ped::collect_germline_stats(m, cdna[site], mdna[site], ddna[site]);
+      }
+      
       m.dna_set = true;
       --remaining;
     }
@@ -121,7 +211,20 @@ int main(int argc, char *argv[]) {
       Genotype gametic_gt = dna[site];
       Genotype somatic_gt = model.getSomaticTransition(m, ref, gametic_gt);
       somatic_dna[mem].push_back(somatic_gt);
-      collect_somatic_stats(m, gametic_gt, somatic_gt);
+    }
+
+    // Changes sites where user if forcing a mutation
+    if(somatic_mutations[mem].size() > 0) {
+      for(size_t site : somatic_mutations[mem]) {
+	Base ref = reference[site];
+	Genotype gametic_gt = dna[site];
+	somatic_dna[mem][site] = model_s1.getSomaticTransition(m, ref, gametic_gt);
+      }
+    }
+
+    // Collect statistics about somatic mutations
+    for(size_t site = 0; site < contig_len; ++site) {
+      ped::collect_somatic_stats(m, dna[site], somatic_dna[mem][site]);
     }
   }
 

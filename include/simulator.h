@@ -49,6 +49,11 @@ struct arg_t {
   double mu_library;
   std::array<double, 4> nuc_freqs;
   gamma_t model_a, model_b;
+
+  // locations (ID + loci) of forced germline and somatic mutations
+  std::vector<std::pair<std::string, std::size_t>> germline_mutations;
+  std::vector<std::pair<std::string, std::size_t>> somatic_mutations;
+  
   bool help;
 
   std::string input;
@@ -65,9 +70,14 @@ struct params_t {
 } model_a, model_b;
 
 
+void parse_loci(std::string &input_list, std::vector<std::pair<std::string, std::size_t>> &mut_list);
+ 
+
 int parse_options(int argc, char *argv[]) {
   std::string nuc_freqs;
   std::vector<std::string> gamma_str;
+  std::string germ_mut_str;
+  std::string som_mut_str;
 
   _desc.add_options()
     ("read-depths,d", po::value<size_t>(&arg.read_depths)->default_value(30), "Num of calls at each site.")
@@ -83,6 +93,8 @@ int parse_options(int argc, char *argv[]) {
     ("nuc-freqs", po::value<std::string>(&nuc_freqs)->default_value("0.3,0.2,0.2,0.3"), "order frequency.")
     ("input", po::value<std::string>(&arg.input)->default_value(""), "reference file.")
     ("help,h", po::value<bool>(&arg.help)->default_value(false, "off"))
+    ("germline-mutation", po::value<std::string>(&germ_mut_str)->default_value(""), "Specificy locations ID[:loc] to force germline mutations. Location is 0 based, if not specified uses first allele.")
+    ("somatic-mutation", po::value<std::string>(&som_mut_str)->default_value(""), "Specificy locations ID[:loc] to force somatic mutations. Location is 0 based, if not specified uses first allele.")
     ;
 
   p.add("input", -1);
@@ -127,9 +139,72 @@ int parse_options(int argc, char *argv[]) {
   arg.model_b.epsilon = std::stod(plist2[2]);
   arg.model_b.omega = std::stod(plist2[3]);
 
+  // Get locations where user is trying to force a germline/somatic mutation
+  parse_loci(germ_mut_str, arg.germline_mutations);
+  parse_loci(som_mut_str, arg.somatic_mutations);
+  
+  /*
+  std::vector<std::string> loci_list;
+  if(!germ_mut_str.empty()) {
+    boost::split(loci_list, germ_mut_str, boost::is_any_of(","));
+    for(std::string &str : loci_list) {
+      std::size_t cpos = str.rfind(":");
+      if(cpos == 0 || cpos == str.size()-1) {
+	throw std::runtime_error("Invalid mutation position \"" + str +
+				 "\". Must be in ID[:loc] format.");
+      }
+
+      
+      if(cpos != std::string::npos) {
+	std::string id = str.substr(0, cpos);
+	char *endptr;
+	std::size_t pos = std::strtoul(str.substr(cpos+1).c_str(), &endptr, 0);
+	if(*endptr != 0 || str[cpos+1] == '-') {
+	  throw std::runtime_error("Invalid mutation position \"" + str +
+				   "\". loci location must be a non-negative integer.");
+	}
+	arg.germline_mutations.emplace_back(id, pos);
+      }
+      else {
+	arg.germline_mutations.emplace_back(str, 0);
+      }
+    }    
+  }
+  */
+
   return EXIT_SUCCESS;
 }
 
+void parse_loci(std::string &input_list, std::vector<std::pair<std::string, std::size_t>> &mut_list) {
+  std::vector<std::string> loci_list;
+  if(!input_list.empty()) {
+    boost::split(loci_list, input_list, boost::is_any_of(","));
+    for(std::string &str : loci_list) {
+      std::size_t cpos = str.rfind(":");
+      if(cpos == 0 || cpos == str.size()-1) {
+	throw std::runtime_error("Invalid mutation position \"" + str +
+				 "\". Must be in ID[:loc] format.");
+      }
+
+      
+      if(cpos != std::string::npos) {
+	std::string id = str.substr(0, cpos);
+	char *endptr;
+	std::size_t pos = std::strtoul(str.substr(cpos+1).c_str(), &endptr, 0);
+	if(*endptr != 0 || str[cpos+1] == '-') {
+	  throw std::runtime_error("Invalid mutation position \"" + str +
+				   "\". loci location must be a non-negative integer.");
+	}
+	mut_list.emplace_back(id, pos);
+      }
+      else {
+	mut_list.emplace_back(str, 0);
+      }
+    }    
+  }
+}
+
+ 
 
 typedef uint8_t Base;
 
@@ -204,7 +279,22 @@ Base split_table[10][2] = {
 typedef Eigen::MatrixXd TransitionMatrix;
 typedef Eigen::Matrix4d MutationMatrix;
 
-TransitionMatrix mitosis_haploid_matrix(double mu, std::array<double, 4> nuc_freq) {
+// Returns an F81 nt transtions matrix based on the mutation rate mu and nucleotide frequency.
+// Set the number of mutations, n_muts,
+//    1 = force a mutation (0's on diag) 
+//    0 = no mutation (identity, same as mu == 0)
+//   -1 = default F81, has 0 or one mutations
+TransitionMatrix mitosis_haploid_matrix(double mu, std::array<double, 4> nuc_freq, int n_muts = -1) {
+  // No mutations
+  if(n_muts == 0) {
+    return TransitionMatrix::Identity(4, 4);
+  }
+
+  if(n_muts > 1) {
+    return TransitionMatrix::Zero(4, 4);
+  }
+  
+  // coefficients for matrix
   double beta = 1.0/(1.0 - pow(nuc_freq[0], 2) - pow(nuc_freq[1], 2)
 		     - pow(nuc_freq[2],2) - pow(nuc_freq[3], 2));
   double p = exp(-beta*mu);
@@ -217,6 +307,18 @@ TransitionMatrix mitosis_haploid_matrix(double mu, std::array<double, 4> nuc_fre
     P(i,i) += p;
   }
 
+  // When forcing a mutation set diagonal to 0 and renormalize each row. 
+  if(n_muts > 0) {
+    for(int r = 0; r < 4; ++r) {
+      P(r,r) = 0.0;
+      double rsum = P.row(r).sum();
+      for(int c = 0; c < 4; ++c) {
+      	P(r,c) /= rsum;
+      }
+    }    
+  }
+  
+
   return P;
 }
 
@@ -224,8 +326,9 @@ constexpr int folded_diploid_nucleotides[10][2] = {{0, 0}, {0, 1}, {0, 2}, {0, 3
     {1, 1}, {1, 2}, {1, 3}, {2, 2}, {2, 3}, {3, 3}
 };
 
-TransitionMatrix meiosis_haploid_matrix(double mu, std::array<double, 4> nuc_freq) {
-  TransitionMatrix T = mitosis_haploid_matrix(mu, nuc_freq);
+TransitionMatrix meiosis_haploid_matrix(double mu, std::array<double, 4> nuc_freq, int n_muts = -1) {
+
+  TransitionMatrix T = mitosis_haploid_matrix(mu, nuc_freq, n_muts);
   TransitionMatrix M(10, 4);
   for(int i = 0; i < 10; ++i) {
     int a = folded_diploid_nucleotides[i][0];
@@ -234,20 +337,32 @@ TransitionMatrix meiosis_haploid_matrix(double mu, std::array<double, 4> nuc_fre
       M(i,j) = 0.5*(T(a,j) + T(b,j));
     }
   }
-  
+
   return M;
 }
 
 
-constexpr int folded_diploid_genotypes[16] = {0, 1, 2, 3, 1, 4, 5, 6, 2, 5, 7, 8, 3, 6, 8, 9};
+int folded_diploid_genotypes[16] = {0, 1, 2, 3, 1, 4, 5, 6, 2, 5, 7, 8, 3, 6, 8, 9};
 
-TransitionMatrix meiosis_diploid_matrix(double mu, std::array<double, 4> nuc_freq) {
-  TransitionMatrix P1 = meiosis_haploid_matrix(mu, nuc_freq);
-  TransitionMatrix P2 = TransitionMatrix(P1);
-
-  // TODO: If there is no diff between mom & dad we can reduce num of rows
-  TransitionMatrix K = kroneckerProduct(P1, P2);
+TransitionMatrix meiosis_diploid_matrix(double mu, std::array<double, 4> nuc_freq, int n_muts = -1) {
   
+  TransitionMatrix K = TransitionMatrix::Zero(100, 16);
+  if(n_muts <= 0) {
+    TransitionMatrix P1 = meiosis_haploid_matrix(mu, nuc_freq, n_muts);
+    TransitionMatrix P2 = meiosis_haploid_matrix(mu, nuc_freq, n_muts);  
+    K = kroneckerProduct(P1, P2);
+  }
+  else if(n_muts > 2) {
+    return TransitionMatrix::Zero(100, 10);
+  }
+  else {
+    for(int i = 0; i <= n_muts; ++i) {
+      TransitionMatrix P1 = meiosis_haploid_matrix(mu, nuc_freq, i);
+      TransitionMatrix P2 = meiosis_haploid_matrix(mu, nuc_freq, n_muts - i);
+      K += kroneckerProduct(P1, P2);
+    }    
+  }
+
   TransitionMatrix M = TransitionMatrix::Zero(100, 10);
   for(int i = 0; i < 100; ++i) {
     for(int j = 0; j < 16; ++j) {
@@ -255,6 +370,7 @@ TransitionMatrix meiosis_diploid_matrix(double mu, std::array<double, 4> nuc_fre
       M(i,k) += K(i,j);
     }
   }
+
   return M;
 }
 
@@ -266,37 +382,74 @@ size_t findGTIndex(Genotype p1, Genotype p2){
 }
 
 
-TransitionMatrix mitosis_diploid_matrix(double mu_soma, std::array<double, 4> nuc_freq) {
-  TransitionMatrix F81 = mitosis_haploid_matrix(mu_soma, nuc_freq);
+
+ 
+TransitionMatrix mitosis_diploid_matrix_sm(double mu_soma, std::array<double, 4> &nuc_freq, int n_muts = -1) {
+  // no mutations, same as setting mu_soma = 0.
+  if(n_muts == 0) {
+    return TransitionMatrix::Identity(10, 10);
+  }
+
+  TransitionMatrix F = mitosis_haploid_matrix(mu_soma, nuc_freq, 1);
+  TransitionMatrix I = TransitionMatrix::Identity(4, 4);
   TransitionMatrix T(10, 10);
 
   for(size_t i = 0; i < 10; ++i) {
     Base *row = split_table[i];
     Base i1 = row[0];
     Base i2 = row[1];
-    
+
     for(int j = 0; j < 10; ++j) {
       Base *col = split_table[j];
       Base j1 = col[0];
       Base j2 = col[1];
-      
-      if(i1 == i2 && j1 == j2)
-	T(i,j) = F81(i1,j1)*F81(i1,j1);
-      else
-	T(i,j) = F81(i1,j1)*F81(i2,j2) + F81(i1,j2)*F81(i2,j1);
+
+      T(i,j) = I(i1,j1)*F(i2,j2) + I(i2,j2)*F(i1,j1) + I(i1,j2)*F(i2,j1) + I(i2,j1)*F(i1,j2);
     }
   }
 
-  return T;
+  return T;  
 }
 
- 
-const gsl_rng *r;
-void initGSL() {
-  gsl_rng_env_setup();
-  const gsl_rng_type *T = gsl_rng_default;
-  r = gsl_rng_alloc(T);
+TransitionMatrix mitosis_diploid_matrix(double mu_soma, std::array<double, 4> &nuc_freq, int n_muts = -1) {
+  // no mutations, same as setting mu_soma = 0.
+  if(n_muts == 0) {
+    return TransitionMatrix::Identity(10, 10);
+  }
+
+  // Special logic when forcing a single mutations
+  if(n_muts == 1) {
+    return mitosis_diploid_matrix_sm(mu_soma, nuc_freq);
+  }
+  
+  TransitionMatrix F = mitosis_haploid_matrix(mu_soma, nuc_freq, n_muts);
+  TransitionMatrix T(10, 10);
+
+  for(size_t i = 0; i < 10; ++i) {
+    Base *row = split_table[i];
+    Base i1 = row[0];
+    Base i2 = row[1];
+
+    for(int j = 0; j < 10; ++j) {
+      Base *col = split_table[j];
+      Base j1 = col[0];
+      Base j2 = col[1];
+
+      if(i1 == i2 || j1 == j2) {
+	T(i,j) = F(i1,j1)*F(i2,j2);
+      }
+      else {
+	T(i,j) = F(i1,j1)*F(i2,j2) + F(i1,j2)*F(i2,j1);
+      }
+    }
+  }
+
+  return T;    
 }
+
+
+
+ 
 
 
 typedef std::array<unsigned int, 4> reads_list; 
