@@ -49,6 +49,7 @@ struct arg_t {
   double mu_library;
   std::array<double, 4> nuc_freqs;
   gamma_t model_a, model_b;
+  size_t seed;
 
   // locations (ID + loci) of forced germline and somatic mutations
   std::vector<std::pair<std::string, std::size_t>> germline_mutations;
@@ -95,6 +96,7 @@ int parse_options(int argc, char *argv[]) {
     ("help,h", po::value<bool>(&arg.help)->default_value(false, "off"))
     ("germline-mutation", po::value<std::string>(&germ_mut_str)->default_value(""), "Specificy locations ID[:loc] to force germline mutations. Location is 0 based, if not specified uses first allele.")
     ("somatic-mutation", po::value<std::string>(&som_mut_str)->default_value(""), "Specificy locations ID[:loc] to force somatic mutations. Location is 0 based, if not specified uses first allele.")
+    ("seed", po::value<size_t>(&arg.seed)->default_value(0), "seed for randomizing germline/somatic mutation, default will use time.") 
     ;
 
   p.add("input", -1);
@@ -143,35 +145,6 @@ int parse_options(int argc, char *argv[]) {
   parse_loci(germ_mut_str, arg.germline_mutations);
   parse_loci(som_mut_str, arg.somatic_mutations);
   
-  /*
-  std::vector<std::string> loci_list;
-  if(!germ_mut_str.empty()) {
-    boost::split(loci_list, germ_mut_str, boost::is_any_of(","));
-    for(std::string &str : loci_list) {
-      std::size_t cpos = str.rfind(":");
-      if(cpos == 0 || cpos == str.size()-1) {
-	throw std::runtime_error("Invalid mutation position \"" + str +
-				 "\". Must be in ID[:loc] format.");
-      }
-
-      
-      if(cpos != std::string::npos) {
-	std::string id = str.substr(0, cpos);
-	char *endptr;
-	std::size_t pos = std::strtoul(str.substr(cpos+1).c_str(), &endptr, 0);
-	if(*endptr != 0 || str[cpos+1] == '-') {
-	  throw std::runtime_error("Invalid mutation position \"" + str +
-				   "\". loci location must be a non-negative integer.");
-	}
-	arg.germline_mutations.emplace_back(id, pos);
-      }
-      else {
-	arg.germline_mutations.emplace_back(str, 0);
-      }
-    }    
-  }
-  */
-
   return EXIT_SUCCESS;
 }
 

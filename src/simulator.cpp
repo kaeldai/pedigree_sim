@@ -120,14 +120,20 @@ int main(int argc, char *argv[]) {
   std::vector<std::vector<Genotype>> somatic_dna(family.size());
 	     
   model::DNGModel model(arg.ref_weight, arg.theta, arg.nuc_freqs, arg.mu, arg.mu_somatic, arg.model_a, arg.model_b);
-
+  
   // A model that will always force a germline mutation
   model::DNGModel1GM model_g1(arg.ref_weight, arg.theta, arg.nuc_freqs, arg.mu_somatic, arg.model_a, arg.model_b);
   
   // A model that will always force a somatic mutation
   model::DNGModel1SM model_s1(arg.ref_weight, arg.theta, arg.nuc_freqs, arg.mu, arg.model_a, arg.model_b);
   
+  size_t seed = (arg.seed > 0 ? seed : time(0));
+  model.set_seed(seed);
+  model_g1.set_seed(seed);
+  model_s1.set_seed(seed);
 
+
+  
   std::cout << "> Creating germline DNA for founders." << std::endl;
   
   // Use the population priors to intialize founder dna

@@ -26,7 +26,7 @@ Currently on runs on posix, built in C++ and requires the following libraries:
 ./simulator [options] --ped <family.ped> --region <chr:begin-end> <reference.fasta>
 ```
 * Options  
- * --read-depths [int] : number of library calls to make at each site (default 30)
+ * --read-depths [unsigned int] : number of library calls to make at each site (default 30)
  * --prefix [string] : prefix file name for output .tad, .vcf and .csv (uses family id in pedigree by default)
  * --theta [float] : population diversity for founders (default 0.001)
  * --ref-weight [float] : bias towards the reference at each site (default 1.0, no bias)
@@ -35,4 +35,6 @@ Currently on runs on posix, built in C++ and requires the following libraries:
  * --mu-somatic [float] : somatic mutation rate (default 1e-8)
  * --mu-library [float] : library preparation error rate (default 1e-8)
  * --gamma [...] : two sets of parameters used in the dirichlet multinomial models.
-
+ * --germline-mutation [X:i,...] : Forces a gametic mutation for indivual X at location i in contig (starting at 0). For multiple gametic mutations use a comma separated string, ie "NA1:0,NA1:1,NA2:1000". Currently does not work with pedigree founders.
+ * --somatic-mutation [X:i,...] : Forces a somatic mutation for indivual X at location i in contig (starting at 0). For multiple somatic mutations use a comma separated string, ie "NA1:0,NA1:1,NA2:1000".
+ * --seed [unsigned int] : Specify a seed for the random generation of germline and somatic mutations. If 0 (default) then seed will be based on the time function."

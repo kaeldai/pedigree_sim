@@ -182,7 +182,8 @@ class TadOutput {
   void writeSite() {
     // Get references
     if(c_ref_ == N) {
-      outfile_ << c_contig_ << "\t" << c_pos_ << "\tN" << std::endl;
+      // Don't display N's, maybe later.
+      //outfile_ << c_contig_ << "\t" << c_pos_ << "\tN" << std::endl;
       return;
     }
     

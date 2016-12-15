@@ -21,39 +21,39 @@ class DNGModel {
  public:
  DNGModel(double ref_weight, double theta, std::array<double,4> nuc_freqs, double mu, double mu_somatic,
 	  gamma_t model_a, gamma_t model_b, int n_germ_mut = -1, int n_som_mut =-1) :
-            ref_weight_(ref_weight), theta_(theta), nuc_freqs_(nuc_freqs), mu_(mu), mu_soma_(mu_somatic),
-            model_a_(model_a), model_b_(model_b) {
-      // Create probabilities for founder germline based on ref, freqs, and dispersial (theta)
-      genotype_priors_[0] = population_prior(theta_, nuc_freqs_, {ref_weight_, 0, 0, 0});
-      genotype_priors_[1] = population_prior(theta_, nuc_freqs_, {0, ref_weight_, 0, 0});
-      genotype_priors_[2] = population_prior(theta_, nuc_freqs_, {0, 0, ref_weight_, 0});
-      genotype_priors_[3] = population_prior(theta_, nuc_freqs_, {0, 0, 0, ref_weight_});
-
-      // Create a set of distributions based on genotype_priors
-      setPopPriorDist(genotype_priors_);
-
-      // Create distribution for germline transitions
-      germline_trans_matrix_ = meiosis_diploid_matrix(mu_, nuc_freqs_, n_germ_mut);
-
-      //std::cout << "germline_tran_matrix_ -----------------" << std::endl;
-      //std::cout << germline_trans_matrix_ << std::endl;
-      //exit(0);
-      //}
-      
-      setGermlineDist(germline_trans_matrix_);
-
-      // Distribution for somatic transitons
-      somatic_trans_matrix_ = mitosis_diploid_matrix(mu_soma_, nuc_freqs_, n_som_mut);
-      setSomaticDist(somatic_trans_matrix_);
-
-      // Create two lookup tables for call probabilities
-      createReadProportions(model_a_.epsilon, model_a_.omega, read_proportions_a_);
-      createReadProportions(model_b_.epsilon, model_b_.omega, read_proportions_b_);
-      initGSL();
-      initBernoulliGenerator(model_a_.phi); // model_a_.phi + model_b_.phi = 1
-      
+  ref_weight_(ref_weight), theta_(theta), nuc_freqs_(nuc_freqs), mu_(mu), mu_soma_(mu_somatic),
+    model_a_(model_a), model_b_(model_b) {
+    // Create probabilities for founder germline based on ref, freqs, and dispersial (theta)
+    genotype_priors_[0] = population_prior(theta_, nuc_freqs_, {ref_weight_, 0, 0, 0});
+    genotype_priors_[1] = population_prior(theta_, nuc_freqs_, {0, ref_weight_, 0, 0});
+    genotype_priors_[2] = population_prior(theta_, nuc_freqs_, {0, 0, ref_weight_, 0});
+    genotype_priors_[3] = population_prior(theta_, nuc_freqs_, {0, 0, 0, ref_weight_});
+    
+    // Create a set of distributions based on genotype_priors
+    setPopPriorDist(genotype_priors_);
+    
+    // Create distribution for germline transitions
+    germline_trans_matrix_ = meiosis_diploid_matrix(mu_, nuc_freqs_, n_germ_mut);
+    setGermlineDist(germline_trans_matrix_);
+    
+    // Distribution for somatic transitons
+    somatic_trans_matrix_ = mitosis_diploid_matrix(mu_soma_, nuc_freqs_, n_som_mut);
+    setSomaticDist(somatic_trans_matrix_);
+    
+    // Create two lookup tables for call probabilities
+    createReadProportions(model_a_.epsilon, model_a_.omega, read_proportions_a_);
+    createReadProportions(model_b_.epsilon, model_b_.omega, read_proportions_b_);
+    initGSL();
+    initBernoulliGenerator(model_a_.phi); // model_a_.phi + model_b_.phi = 1
+    
   }
 
+  void set_seed(size_t seed) {
+    ran_generator_.seed(seed);
+
+  }
+
+	    
   void print_priors() {    
     for(int i : {A, C, G, T}) {
       switch(i) {
